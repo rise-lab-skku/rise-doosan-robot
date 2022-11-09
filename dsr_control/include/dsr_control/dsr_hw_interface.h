@@ -550,6 +550,7 @@ namespace dsr_control{
         std::string m_strRobotName;
         std::string m_strRobotModel;
         std::string m_strRobotGripper;
+        std::vector<std::string> m_vecRobotJointName;
 
         //----- Service ---------------------------------------------------------------
         ros::ServiceServer m_nh_system[20];

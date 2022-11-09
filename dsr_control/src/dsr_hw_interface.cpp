@@ -680,18 +680,47 @@ namespace dsr_control{
         private_nh_.getParam("gripper", m_strRobotGripper);
 
         ROS_INFO("name_space is %s, %s\n",m_strRobotName.c_str(), m_strRobotModel.c_str());
-
         ROS_INFO("[dsr_hw_interface] constructed");
+
+        // get joint names for dual arm configuration
         ros::V_string arm_joint_names;
-        if(m_strRobotGripper == "robotiq_2f"){
-            arm_joint_names =
-            boost::assign::list_of("joint1")("joint2")("joint3")("joint4")("joint5")("joint6")("robotiq_85_left_knuckle_joint").convert_to_container<ros::V_string>();
-        }
-        else if(m_strRobotGripper == "none")
+        try
         {
-            arm_joint_names =
-            boost::assign::list_of("joint1")("joint2")("joint3")("joint4")("joint5")("joint6").convert_to_container<ros::V_string>();
+            private_nh_.getParam("controller_joint_names", m_vecRobotJointName);
+            arm_joint_names = m_vecRobotJointName;
+            
+            if (arm_joint_names.size() == 0)
+            {
+                std::string err_msg = "No joint names found on parameter server, using default joint names";
+                throw std::runtime_error(err_msg);
+            }
+
+            // print arm_joint_names
+            ROS_INFO("[dsr_hw_interface] Load joint names from parameter server");
+            for(int i=0; i<arm_joint_names.size(); i++)
+            {
+                ROS_INFO("joint name : %s", arm_joint_names[i].c_str());
+            }
         }
+        catch (const std::runtime_error& e)
+        {
+            // if not found, use default joint names(original doosan-robotics branch joint names)
+            ROS_WARN("%s", e.what());
+            if(m_strRobotGripper == "robotiq_2f"){
+                arm_joint_names =
+                boost::assign::list_of("joint1")("joint2")("joint3")("joint4")("joint5")("joint6")("robotiq_85_left_knuckle_joint").convert_to_container<ros::V_string>();
+            }
+            else if(m_strRobotGripper == "none")
+            {
+                arm_joint_names =
+                boost::assign::list_of("joint1")("joint2")("joint3")("joint4")("joint5")("joint6").convert_to_container<ros::V_string>();
+            }
+            for(int i=0; i<arm_joint_names.size(); i++)
+            {
+                ROS_INFO("joint name : %s", arm_joint_names[i].c_str());
+            }
+        }
+
         for(unsigned int i = 0; i < arm_joint_names.size(); i++){
             hardware_interface::JointStateHandle jnt_state_handle(
                 arm_joint_names[i],
