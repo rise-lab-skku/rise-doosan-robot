@@ -77,6 +77,8 @@ namespace dsr_control{
 
     // JointTrajectoryAction is implemented for MoveIt!
     // https://github.com/doosan-robotics/doosan-robot/pull/106
+    // Using amovej induces a unstable(vibrated) motion. So we use movesj instead.
+    // (!) Movesj has an issue that it could not execute the trajectory that has more than 100 points. 
     JointTrajectoryAction::JointTrajectoryAction(ros::NodeHandle nh, std::string name) : 
         as_(nh, name, boost::bind(&JointTrajectoryAction::trajectoryCallback, this, _1), false),                                                            
         action_name_(name)
@@ -87,78 +89,39 @@ namespace dsr_control{
     void JointTrajectoryAction::trajectoryCallback(const control_msgs::FollowJointTrajectoryGoalConstPtr &goal)
     {
         ROS_INFO("callback: Trajectory received");
-        ROS_INFO("  goal->trajectory.points.size() =%d", (int)goal->trajectory.points.size());           //=10 가변젹
-        ROS_INFO("  goal->trajectory.joint_names.size() =%d", (int)goal->trajectory.joint_names.size()); //=6
+        ROS_INFO("  msg->goal.trajectory.points.size() =%d",(int)goal->trajectory.points.size());   //=10 가변젹 
+        ROS_INFO("  msg->goal.trajectory.joint_names.size() =%d",(int)goal->trajectory.joint_names.size()); //=6
 
         float preTargetTime = 0.0;
         float targetTime = 0.0;
 
-        int nCntTargetPos = goal->trajectory.points.size();
+        float fTargetPos[MAX_SPLINE_POINT][NUM_JOINT] = {0.0, };
+        int nCntTargetPos =0; 
 
-        float fTargetPos[nCntTargetPos][NUM_JOINT] = {
-            0.0,
-        };
-        // if (nCntTargetPos > MAX_SPLINE_POINT)
-        // {
-        //     ROS_INFO("DRHWInterface::trajectoryCallback over max Trajectory (%d > %d)", nCntTargetPos, MAX_SPLINE_POINT);
-        //     as_.setAborted(result_);
-        //     return;
-        // }
+        nCntTargetPos = goal->trajectory.points.size();
+        if(nCntTargetPos > MAX_SPLINE_POINT)
+        {
+            ROS_INFO("DRHWInterface::trajectoryCallback over max Trajectory (%d > %d)",nCntTargetPos ,MAX_SPLINE_POINT);
+            return; 
+        }
 
-        ros::Time begin = ros::Time::now();
-
-        for (int i = 0; i < nCntTargetPos; i++) //=10
+        for(int i = 0; i < goal->trajectory.points.size(); i++) //=10
         {
             std::array<float, NUM_JOINT> degrees;
-            ros::Duration d(goal->trajectory.points[i].time_from_start);
-
-            // ROS_INFO("  goal->trajectory.points[%d].time_from_start = %7.3%f",i,(float)goal->trajectory.points[i].time_from_start );
+            ros::Duration d(goal->trajectory.points[i].time_from_start);    
 
             targetTime = d.toSec();
-            /// ROS_INFO("[trajectory] preTargetTime: %7.3f", preTargetTime);
-            /// targetTime = targetTime - preTargetTime;
-            /// preTargetTime = targetTime;
-            /// ROS_INFO("[trajectory] time_from_start: %7.3f", targetTime);
+            ROS_INFO("[trajectory] [%02d : %.3f] %7.3f %7.3f %7.3f %7.3f %7.3f %7.3f",i ,targetTime
+                ,rad2deg(goal->trajectory.points[i].positions[0]) ,rad2deg(goal->trajectory.points[i].positions[1]), rad2deg(goal->trajectory.points[i].positions[2])
+                ,rad2deg(goal->trajectory.points[i].positions[3]) ,rad2deg(goal->trajectory.points[i].positions[4]), rad2deg(goal->trajectory.points[i].positions[5]) );
 
-            for (int j = 0; j < goal->trajectory.joint_names.size(); j++) //=6
+            for(int j = 0; j < goal->trajectory.joint_names.size(); j++)    //=6    
             {
-                // ROS_INFO("[trajectory] %d-pos: %7.3f", j, goal->trajectory.points[i].positions[j]);
-                /* todo
-                get a position & time_from_start
-                convert radian to degree the position
-                run MoveJ(position, time_From_start)
-                */
-                degrees[j] = rad2deg(goal->trajectory.points[i].positions[j]);
-
+                degrees[j] = rad2deg( goal->trajectory.points[i].positions[j] );
                 fTargetPos[i][j] = degrees[j];
             }
-
-            ros::Duration step_duration = d - (ros::Time::now() - begin);
-            float blending_radius = 50;
-
-            if (as_.isPreemptRequested() || !ros::ok())
-            {
-                ROS_INFO("%s: Preempted", action_name_.c_str());
-                // set the action state to preempted
-                as_.setPreempted();
-                return;
-            }
-            ROS_INFO("[trajectory] [%02d : %.3f : %.3f] %7.3f %7.3f %7.3f %7.3f %7.3f %7.3f", i, targetTime, step_duration.toSec(), rad2deg(goal->trajectory.points[i].positions[0]), rad2deg(goal->trajectory.points[i].positions[1]), rad2deg(goal->trajectory.points[i].positions[2]), rad2deg(goal->trajectory.points[i].positions[3]), rad2deg(goal->trajectory.points[i].positions[4]), rad2deg(goal->trajectory.points[i].positions[5]));
-
-            Drfl.MoveJAsync(degrees.data(), 50, 50, step_duration.toSec()+0.25, MOVE_MODE_ABSOLUTE, BLENDING_SPEED_TYPE_OVERRIDE);
-
-            // ros::Time::sleepUntil(begin + d - ros::Duration(0.5));
-            ros::Time::sleepUntil(begin + d);
         }
-        // ROS_INFO("CALLING MOVESJ");
-        // Drfl.movesj(fTargetPos, nCntTargetPos, 0.0, 0.0, targetTime, (MOVE_MODE)MOVE_MODE_ABSOLUTE);
-        // ROS_INFO("CALLED MOVESJ");
-        /*
-        for(int i = 0; i < NUM_JOINT; i++){
-            ROS_INFO("[]::cmd %d-pos: %7.3f", i, joints[i].cmd);
-            cmd_[i] = joints[i].cmd;
-        }
-        */
+        Drfl.movesj(fTargetPos, nCntTargetPos, 0.0, 0.0, targetTime, (MOVE_MODE)MOVE_MODE_ABSOLUTE);
         as_.setSucceeded(result_);
     }
 
