@@ -18,9 +18,9 @@
 
     <!-- dsr controller 로드  -->
     <rosparam file="$(find dsr_control)/config/dsr_control.yaml" command="load" ns="$(arg ns)$(arg model)"/>
-    <!-- trajectory controller, joint_state 실행  -->
+    <!-- load dsr_joint_trajectory_controller in controller_manager does not work. dsr_joint_trajectory_controller is handled by dsr_control_node itself. -->
     <node name="controller_spawner" pkg="controller_manager" type="spawner" respawn="false"
-          output="screen" ns="$(arg ns)$(arg model)" args="dsr_joint_trajectory_controller dsr_joint_publisher"/>
+          output="screen" ns="$(arg ns)$(arg model)" args="dsr_joint_publisher"/>
 
     <!-- moveit은 멀티 arm이 안되므로 model은 참조용으로 사용 -->
     <node pkg="dsr_control" type="dsr_control_node" name="$(arg ns)$(arg model)" respawn="false" output="screen" >
